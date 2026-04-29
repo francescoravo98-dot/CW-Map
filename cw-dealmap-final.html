@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CW Deal Map — Capital Markets Milano</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface2: #f8f9fb;
+  --border: #e4e7ed;
+  --border2: #d0d5df;
+  --accent: #c8382a;
+  --accent2: #e04535;
+  --accent-light: #fdf1f0;
+  --text: #1a1d23;
+  --text2: #4a5060;
+  --text3: #8a909f;
+  --green: #1a8a4a;
+  --green-bg: #edf7f2;
+  --red: #c8382a;
+  --blue: #1a5abf;
+  --blue-bg: #eef3fc;
+  --orange: #c86a1a;
+  --orange-bg: #fdf4ec;
+  --purple: #6b3db5;
+  --purple-bg: #f2eefb;
+  --gold: #9a7420;
+  --gold-bg: #fdf8ec;
+  --sidebar-w: 320px;
+  --panel-w: 400px;
+  --header-h: 54px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+
+/* LOADING SCREEN */
+#loadingScreen {
+  position:fixed; inset:0; background:white; z-index:9999;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+}
+.loading-logo { font-family:'Syne',sans-serif; font-weight:800; font-size:22px; color:var(--accent); }
+.loading-sub { font-size:13px; color:var(--text3); }
+.spinner {
+  width:32px; height:32px;
+  border:3px solid var(--border);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* HEADER */
+header {
+  height:var(--header-h); background:var(--surface); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 20px; gap:16px; flex-shrink:0; z-index:1000;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06);
+}
+.logo { display:flex; align-items:center; gap:10px; }
+.logo-mark { background:var(--accent); color:white; font-family:'Syne',sans-serif; font-weight:800; font-size:13px; letter-spacing:.04em; padding:4px 8px; border-radius:3px; }
+.logo-text { font-family:'Syne',sans-serif; font-weight:600; font-size:14px; }
+.logo-sub { font-size:11px; color:var(--text3); }
+.hdiv { width:1px; height:24px; background:var(--border); }
+.header-stats { display:flex; gap:4px; flex:1; }
+.hstat { display:flex; align-items:center; gap:6px; padding:5px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; font-size:12px; color:var(--text2); }
+.hstat strong { font-weight:600; color:var(--text); }
+.header-actions { display:flex; gap:8px; align-items:center; }
+
+/* SYNC INDICATOR */
+.sync-dot { width:7px; height:7px; border-radius:50%; background:var(--green); display:inline-block; margin-right:3px; }
+.sync-dot.syncing { background:var(--orange); animation:pulse 1s infinite; }
+.sync-dot.error { background:var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* BUTTONS */
+.btn { font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; padding:7px 14px; border-radius:6px; border:1px solid var(--border2); cursor:pointer; transition:all .15s; white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
+.btn-ghost { background:var(--surface); color:var(--text2); }
+.btn-ghost:hover { background:var(--surface2); color:var(--text); }
+.btn-primary { background:var(--accent); color:white; border-color:var(--accent); font-weight:600; }
+.btn-primary:hover { background:var(--accent2); }
+.btn-danger { background:var(--surface); color:var(--red); border-color:#f0c8c5; }
+.btn-danger:hover { background:var(--accent-light); }
+.btn-sm { padding:5px 11px; font-size:12px; }
+
+/* LAYOUT */
+.app-body { display:flex; flex:1; overflow:hidden; position:relative; }
+
+/* SIDEBAR */
+.sidebar { width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
+.sidebar-top { padding:14px 16px 12px; border-bottom:1px solid var(--border); }
+.search-box { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:8px 12px 8px 34px; font-family:'DM Sans',sans-serif; font-size:13px; color:var(--text); outline:none; transition:all .15s; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a909f' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:11px center; }
+.search-box::placeholder { color:var(--text3); }
+.search-box:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(200,56,42,.08); background-color:var(--surface); }
+
+.filters-wrap { overflow-y:auto; border-bottom:1px solid var(--border); max-height:340px; }
+.filters-wrap::-webkit-scrollbar { width:3px; }
+.filters-wrap::-webkit-scrollbar-thumb { background:var(--border2); }
+.filter-section { padding:10px 16px; border-bottom:1px solid var(--border); }
+.filter-section:last-child { border-bottom:none; }
+.filter-label { font-size:10px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--text3); margin-bottom:7px; display:block; }
+.chip-row { display:flex; flex-wrap:wrap; gap:5px; }
+.chip { font-family:'DM Sans',sans-serif; font-size:12px; padding:3px 10px; border-radius:20px; border:1px solid var(--border2); background:var(--surface); color:var(--text2); cursor:pointer; transition:all .12s; }
+.chip:hover { border-color:var(--accent); color:var(--accent); }
+.chip.active { background:var(--accent-light); border-color:var(--accent); color:var(--accent); font-weight:600; }
+.range-row { display:flex; gap:6px; align-items:center; }
+.range-input { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:5px; padding:5px 8px; font-family:'DM Sans',sans-serif; font-size:12px; color:var(--text); outline:none; transition:border-color .12s; }
+.range-input:focus { border-color:var(--accent); }
+.range-input::placeholder { color:var(--text3); }
+.range-sep { color:var(--text3); font-size:12px; }
+.toggle-pills { display:flex; gap:5px; flex-wrap:wrap; }
+.pill { font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; padding:4px 10px; border-radius:5px; border:1px solid var(--border2); background:var(--surface); color:var(--text2); cursor:pointer; transition:all .12s; display:flex; align-items:center; gap:5px; }
+.pill-dot { width:6px; height:6px; border-radius:50%; background:var(--border2); }
+.pill.on-orange { background:var(--orange-bg); border-color:var(--orange); color:var(--orange); }
+.pill.on-orange .pill-dot { background:var(--orange); }
+.pill.on-blue { background:var(--blue-bg); border-color:var(--blue); color:var(--blue); }
+.pill.on-blue .pill-dot { background:var(--blue); }
+.pill.on-green { background:var(--green-bg); border-color:var(--green); color:var(--green); }
+.pill.on-green .pill-dot { background:var(--green); }
+.filter-footer { padding:8px 16px; display:flex; justify-content:flex-end; }
+.btn-reset { font-size:11px; color:var(--text3); background:none; border:none; cursor:pointer; font-family:'DM Sans',sans-serif; transition:color .12s; }
+.btn-reset:hover { color:var(--red); }
+
+.list-header { padding:8px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:var(--surface2); }
+.list-count { font-size:12px; color:var(--text3); }
+.list-count strong { color:var(--text); font-weight:600; }
+.prop-list { flex:1; overflow-y:auto; }
+.prop-list::-webkit-scrollbar { width:4px; }
+.prop-list::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+.prop-item { padding:11px 16px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
+.prop-item:hover { background:var(--surface2); }
+.prop-item.selected { background:var(--accent-light); border-left:3px solid var(--accent); }
+.prop-item.selected .prop-name { color:var(--accent); }
+.prop-row1 { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px; }
+.prop-name { font-family:'Syne',sans-serif; font-size:13px; font-weight:600; color:var(--text); line-height:1.3; flex:1; padding-right:8px; }
+.prop-yield { font-size:12px; font-weight:600; color:var(--accent); white-space:nowrap; }
+.prop-meta { display:flex; gap:8px; align-items:center; margin-bottom:5px; }
+.prop-zone { font-size:11px; color:var(--text3); }
+.prop-size { font-size:11px; color:var(--text2); }
+.prop-val { font-size:11px; color:var(--text2); font-weight:500; }
+.prop-badges { display:flex; gap:3px; flex-wrap:wrap; }
+.badge { font-size:10px; font-weight:600; padding:1px 6px; border-radius:3px; }
+.b-offmarket { background:var(--orange-bg); color:var(--orange); }
+.b-pitch { background:var(--blue-bg); color:var(--blue); }
+.b-transacted { background:var(--green-bg); color:var(--green); }
+.b-prospect { background:var(--surface2); color:var(--text3); border:1px solid var(--border); }
+.b-trattativa { background:var(--purple-bg); color:var(--purple); }
+.b-mandato { background:var(--gold-bg); color:var(--gold); }
+.b-chiuso { background:var(--green-bg); color:var(--green); }
+.empty-list { padding:30px 16px; text-align:center; color:var(--text3); font-size:13px; line-height:1.7; }
+
+/* MAP */
+#map { flex:1; z-index:1; }
+
+/* DETAIL PANEL */
+.detail-panel { width:var(--panel-w); background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; transform:translateX(100%); transition:transform .22s cubic-bezier(.4,0,.2,1); position:absolute; right:0; top:0; bottom:0; z-index:500; box-shadow:-4px 0 20px rgba(0,0,0,.08); }
+.detail-panel.open { transform:translateX(0); }
+.panel-head { padding:16px 18px 12px; border-bottom:1px solid var(--border); }
+.panel-head-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
+.panel-title { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; color:var(--text); line-height:1.25; flex:1; padding-right:10px; }
+.panel-close { background:var(--surface2); border:1px solid var(--border); color:var(--text3); cursor:pointer; font-size:14px; width:28px; height:28px; border-radius:5px; display:flex; align-items:center; justify-content:center; transition:all .12s; flex-shrink:0; }
+.panel-close:hover { background:var(--accent-light); color:var(--accent); border-color:var(--accent); }
+.panel-address { font-size:12px; color:var(--text3); margin-bottom:8px; }
+.panel-badges { display:flex; gap:4px; flex-wrap:wrap; }
+.panel-body { flex:1; overflow-y:auto; padding:14px 18px; background:var(--bg); }
+.panel-body::-webkit-scrollbar { width:4px; }
+.panel-body::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+.panel-foot { padding:12px 18px; border-top:1px solid var(--border); display:flex; gap:8px; background:var(--surface); }
+
+/* DETAIL CARDS */
+.detail-block { margin-bottom:14px; }
+.detail-block-title { font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text3); margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+.detail-block-title::after { content:''; flex:1; height:1px; background:var(--border); }
+.detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.dcard { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:9px 11px; }
+.dcard.full { grid-column:1/-1; }
+.dcard.highlight { background:var(--accent-light); border-color:#f0c8c5; }
+.dcard-label { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); margin-bottom:3px; font-weight:500; }
+.dcard-value { font-size:13px; color:var(--text); font-weight:500; line-height:1.3; }
+.dcard-value.big { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; color:var(--accent); }
+.dcard-value.green { color:var(--green); font-weight:600; }
+.dcard-value.orange { color:var(--orange); font-weight:600; }
+.notes-card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:11px 13px; font-size:12px; color:var(--text2); line-height:1.65; white-space:pre-wrap; }
+
+/* MODAL */
+.modal-overlay { position:fixed; inset:0; background:rgba(20,25,35,.45); z-index:2000; display:none; align-items:center; justify-content:center; backdrop-filter:blur(3px); }
+.modal-overlay.open { display:flex; }
+.modal { background:var(--surface); border:1px solid var(--border); border-radius:10px; width:660px; max-width:95vw; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.18); }
+.modal-head { padding:18px 22px 14px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.modal-title { font-family:'Syne',sans-serif; font-size:17px; font-weight:700; }
+.modal-body { flex:1; overflow-y:auto; padding:20px 22px; }
+.modal-body::-webkit-scrollbar { width:4px; }
+.modal-body::-webkit-scrollbar-thumb { background:var(--border2); }
+.modal-foot { padding:12px 22px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; background:var(--surface2); }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+.form-group { display:flex; flex-direction:column; gap:4px; }
+.form-group.full { grid-column:1/-1; }
+.form-section-label { grid-column:1/-1; font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text3); padding:10px 0 5px; border-bottom:1px solid var(--border); margin-top:4px; }
+.form-label { font-size:11px; font-weight:600; color:var(--text2); }
+.form-input,.form-select,.form-textarea { background:var(--surface2); border:1px solid var(--border); border-radius:5px; padding:7px 10px; font-family:'DM Sans',sans-serif; font-size:13px; color:var(--text); outline:none; transition:all .12s; width:100%; }
+.form-input:focus,.form-select:focus,.form-textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(200,56,42,.08); background:var(--surface); }
+.form-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a909f'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; background-color:var(--surface2); }
+.form-select option { background:var(--surface); }
+.form-textarea { resize:vertical; min-height:72px; }
+.check-group { display:flex; flex-direction:column; gap:8px; }
+.check-item { display:flex; align-items:center; gap:8px; }
+.check-item input[type=checkbox] { accent-color:var(--accent); width:15px; height:15px; cursor:pointer; }
+.check-item label { font-size:13px; color:var(--text2); cursor:pointer; }
+
+/* POPUP */
+.leaflet-popup-content-wrapper { border-radius:8px!important; box-shadow:0 8px 30px rgba(0,0,0,.15)!important; border:1px solid var(--border)!important; padding:0!important; overflow:hidden; }
+.leaflet-popup-content { margin:0!important; min-width:200px; }
+.popup-inner { padding:13px 15px; }
+.popup-name { font-family:'Syne',sans-serif; font-size:13px; font-weight:700; color:var(--text); margin-bottom:8px; line-height:1.2; }
+.popup-row { display:flex; justify-content:space-between; font-size:11px; color:var(--text2); margin-bottom:4px; }
+.popup-row span:last-child { font-weight:600; color:var(--text); }
+.popup-btn { margin-top:10px; width:100%; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:600; padding:7px; border-radius:5px; border:none; background:var(--accent); color:white; cursor:pointer; transition:background .12s; }
+.popup-btn:hover { background:var(--accent2); }
+
+/* LEGEND */
+.map-legend { position:absolute; bottom:30px; left:calc(var(--sidebar-w) + 12px); z-index:400; background:var(--surface); border:1px solid var(--border); border-radius:7px; padding:8px 12px; display:flex; gap:14px; box-shadow:0 1px 4px rgba(0,0,0,.08); font-size:11px; }
+.leg-item { display:flex; align-items:center; gap:5px; color:var(--text2); }
+.leg-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+/* PIN */
+.pin-marker { width:32px; height:32px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,.7); box-shadow:0 3px 10px rgba(0,0,0,.25); cursor:pointer; }
+.pin-inner { width:12px; height:12px; background:rgba(255,255,255,.85); border-radius:50%; transform:rotate(45deg); }
+
+/* TOAST */
+.toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--text); color:white; padding:9px 20px; border-radius:6px; font-size:13px; font-weight:500; z-index:9999; opacity:0; transition:opacity .2s,transform .2s; pointer-events:none; white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,.25); }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+.leaflet-tooltip{font-family:DM Sans,sans-serif;font-size:12px;font-weight:600;}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loadingScreen">
+  <div class="loading-logo">CW Deal Map</div>
+  <div class="spinner"></div>
+  <div class="loading-sub">Connessione al database…</div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">CW</div>
+    <div>
+      <div class="logo-text">Deal Map</div>
+      <div class="logo-sub">Capital Markets · Milano</div>
+    </div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="header-stats" id="headerStats"></div>
+  <div class="header-actions">
+    <span id="syncStatus" style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px">
+      <span class="sync-dot" id="syncDot"></span><span id="syncText">Online</span>
+    </span>
+    <div class="hdiv"></div>
+    <button class="btn btn-ghost btn-sm" id="_zbtn" onclick="_tz()">🗺 Zone</button>
+    <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Aggiungi</button>
+  </div>
+</header>
+
+<div class="app-body">
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <input class="search-box" type="text" placeholder="Cerca nome, zona, proprietario…" id="searchInput" oninput="applyFilters()">
+    </div>
+    <div class="filters-wrap">
+      <div class="filter-section">
+        <span class="filter-label">Zona</span>
+        <div class="chip-row" id="zoneChips"></div>
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Pipeline Status</span>
+        <div class="chip-row">
+          <button class="chip" data-val="Prospect" onclick="toggleChip(this,'status')">Prospect</button>
+          <button class="chip" data-val="In Trattativa" onclick="toggleChip(this,'status')">In Trattativa</button>
+          <button class="chip" data-val="Mandato" onclick="toggleChip(this,'status')">Mandato</button>
+          <button class="chip" data-val="Chiuso" onclick="toggleChip(this,'status')">Chiuso</button>
+        </div>
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">GLA (mq)</span>
+        <div class="range-row">
+          <input class="range-input" type="number" placeholder="Min" id="glaMin" oninput="applyFilters()">
+          <span class="range-sep">—</span>
+          <input class="range-input" type="number" placeholder="Max" id="glaMax" oninput="applyFilters()">
+        </div>
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Yield netto (%)</span>
+        <div class="range-row">
+          <input class="range-input" type="number" step="0.1" placeholder="Min" id="yieldMin" oninput="applyFilters()">
+          <span class="range-sep">—</span>
+          <input class="range-input" type="number" step="0.1" placeholder="Max" id="yieldMax" oninput="applyFilters()">
+        </div>
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Valore stimato (€M)</span>
+        <div class="range-row">
+          <input class="range-input" type="number" placeholder="Min" id="valMin" oninput="applyFilters()">
+          <span class="range-sep">—</span>
+          <input class="range-input" type="number" placeholder="Max" id="valMax" oninput="applyFilters()">
+        </div>
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Occupancy (%)</span>
+        <div class="range-row">
+          <input class="range-input" type="number" placeholder="Min" id="occMin" oninput="applyFilters()">
+          <span class="range-sep">—</span>
+          <input class="range-input" type="number" placeholder="Max" id="occMax" oninput="applyFilters()">
+        </div>
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Caratteristiche</span>
+        <div class="toggle-pills">
+          <button class="pill" id="pillOffmarket" onclick="togglePill('offmarket','orange')"><span class="pill-dot"></span>Off Market</button>
+          <button class="pill" id="pillPitch" onclick="togglePill('pitch','blue')"><span class="pill-dot"></span>Pitch Fatto</button>
+          <button class="pill" id="pillTransacted" onclick="togglePill('transacted','green')"><span class="pill-dot"></span>Transato Rec.</button>
+        </div>
+      </div>
+    </div>
+    <div class="filter-footer">
+      <button class="btn-reset" onclick="resetFilters()">↺ Reset filtri</button>
+    </div>
+    <div class="list-header">
+      <span class="list-count" id="listCount">Caricamento…</span>
+    </div>
+    <div class="prop-list" id="propList"></div>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="map-legend">
+    <div class="leg-item"><div class="leg-dot" style="background:#3b82f6"></div>Prospect</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#8b5cf6"></div>In Trattativa</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#d97706"></div>Mandato</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#16a34a"></div>Chiuso</div>
+  </div>
+
+  <div class="detail-panel" id="detailPanel">
+    <div class="panel-head">
+      <div class="panel-head-row">
+        <div class="panel-title" id="panelTitle">—</div>
+        <button class="panel-close" onclick="closePanel()">✕</button>
+      </div>
+      <div class="panel-address" id="panelAddress"></div>
+      <div class="panel-badges" id="panelBadges"></div>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+    <div class="panel-foot">
+      <button class="btn btn-ghost btn-sm" onclick="editSelected()">✎ Modifica</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-danger btn-sm" onclick="deleteSelected()">Elimina</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="modalTitle">Aggiungi Immobile</span>
+      <button class="panel-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-section-label">📍 Identificazione & Posizione</div>
+        <div class="form-group full"><label class="form-label">Nome immobile *</label><input class="form-input" id="f_name" placeholder="Es. Torre ABC, Palazzo XYZ…"></div>
+        <div class="form-group full"><label class="form-label">Indirizzo *</label><input class="form-input" id="f_address" placeholder="Via/Piazza e numero, Milano"></div>
+        <div class="form-group"><label class="form-label">Latitudine * <span style="font-weight:400;color:var(--text3)">(es. 45.4654)</span></label><input class="form-input" id="f_lat" type="number" step="0.000001" placeholder="45.4654"></div>
+        <div class="form-group"><label class="form-label">Longitudine * <span style="font-weight:400;color:var(--text3)">(es. 9.1859)</span></label><input class="form-input" id="f_lng" type="number" step="0.000001" placeholder="9.1859"></div>
+        <div class="form-group"><label class="form-label">Zona</label><input class="form-input" id="f_zone" placeholder="Es. CBD, Porta Nuova…"></div>
+        <div class="form-group"><label class="form-label">Destinazione d'uso</label>
+          <select class="form-select" id="f_use_type"><option value="">—</option><option>Uffici</option><option>Misto Uffici/Retail</option><option>Retail</option><option>Logistica</option><option>Residenziale</option><option>Hotel</option><option>Healthcare</option></select>
+        </div>
+        <div class="form-section-label">🏢 Dati Tecnici</div>
+        <div class="form-group"><label class="form-label">GLA (mq)</label><input class="form-input" id="f_gla" type="number" placeholder="Es. 15000"></div>
+        <div class="form-group"><label class="form-label">Numero piani</label><input class="form-input" id="f_floors" type="number" placeholder="Es. 12"></div>
+        <div class="form-group"><label class="form-label">Anno costruzione</label><input class="form-input" id="f_year_built" type="number" placeholder="Es. 1998"></div>
+        <div class="form-group"><label class="form-label">Ultima ristrutturazione</label><input class="form-input" id="f_year_renov" type="number" placeholder="Es. 2019"></div>
+        <div class="form-group"><label class="form-label">Classe energetica</label>
+          <select class="form-select" id="f_energy"><option value="">—</option><option>A4</option><option>A3</option><option>A2</option><option>A1</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option><option>G</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Certificazione ESG</label>
+          <select class="form-select" id="f_esg"><option value="">—</option><option>LEED Platinum</option><option>LEED Gold</option><option>LEED Silver</option><option>BREEAM Outstanding</option><option>BREEAM Excellent</option><option>BREEAM Very Good</option><option>WELL Platinum</option><option>WELL Gold</option><option>Nessuna</option></select>
+        </div>
+        <div class="form-section-label">💶 Dati Finanziari</div>
+        <div class="form-group"><label class="form-label">Valore stimato (€M)</label><input class="form-input" id="f_value" type="number" step="0.1" placeholder="Es. 45.5"></div>
+        <div class="form-group"><label class="form-label">Yield netto (%)</label><input class="form-input" id="f_yield" type="number" step="0.01" placeholder="Es. 4.75"></div>
+        <div class="form-group"><label class="form-label">Occupancy (%)</label><input class="form-input" id="f_occupancy" type="number" step="0.1" placeholder="Es. 95"></div>
+        <div class="form-group"><label class="form-label">WAULT (anni)</label><input class="form-input" id="f_wault" type="number" step="0.1" placeholder="Es. 4.2"></div>
+        <div class="form-group"><label class="form-label">Canone medio (€/mq/anno)</label><input class="form-input" id="f_rent" type="number" placeholder="Es. 320"></div>
+        <div class="form-group"><label class="form-label">NOI annuo (€M)</label><input class="form-input" id="f_noi" type="number" step="0.01" placeholder="Es. 2.1"></div>
+        <div class="form-section-label">👤 Proprietà & Contatti</div>
+        <div class="form-group"><label class="form-label">Proprietario</label><input class="form-input" id="f_owner" placeholder="Es. Blackstone, Hines…"></div>
+        <div class="form-group"><label class="form-label">Tipo proprietario</label>
+          <select class="form-select" id="f_owner_type"><option value="">—</option><option>Fondo Internazionale</option><option>Fondo Italiano</option><option>Family Office</option><option>Developer</option><option>Assicurativo</option><option>Bancario</option><option>Pubblico</option><option>Corporate Owner-Occupier</option></select>
+        </div>
+        <div class="form-group full"><label class="form-label">Contatto proprietario</label><input class="form-input" id="f_contact" placeholder="Nome, email, telefono"></div>
+        <div class="form-group"><label class="form-label">Tenant principale</label><input class="form-input" id="f_tenant" placeholder="Es. Amazon, Generali…"></div>
+        <div class="form-group"><label class="form-label">Advisor vendita</label><input class="form-input" id="f_advisor" placeholder="Es. CBRE, JLL, Savills…"></div>
+        <div class="form-section-label">📋 Pipeline CW</div>
+        <div class="form-group"><label class="form-label">Pipeline Status</label>
+          <select class="form-select" id="f_status"><option value="">—</option><option>Prospect</option><option>In Trattativa</option><option>Mandato</option><option>Chiuso</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Deal Team CW</label><input class="form-input" id="f_team" placeholder="Es. Rossi, Bianchi…"></div>
+        <div class="form-group full">
+          <div class="check-group">
+            <div class="check-item"><input type="checkbox" id="f_offmarket"><label for="f_offmarket">Off Market</label></div>
+            <div class="check-item"><input type="checkbox" id="f_pitch"><label for="f_pitch">Pitch fatto a CW</label></div>
+            <div class="check-item"><input type="checkbox" id="f_transacted"><label for="f_transacted">Transato recentemente</label></div>
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">Data pitch</label><input class="form-input" id="f_pitch_date" type="date"></div>
+        <div class="form-group"><label class="form-label">Data transazione</label><input class="form-input" id="f_trans_date" type="date"></div>
+        <div class="form-group"><label class="form-label">Prezzo transazione (€M)</label><input class="form-input" id="f_trans_price" type="number" step="0.1"></div>
+        <div class="form-group"><label class="form-label">Acquirente transazione</label><input class="form-input" id="f_trans_buyer" placeholder="Es. DWS, Union Investment…"></div>
+        <div class="form-section-label">📝 Note</div>
+        <div class="form-group full"><label class="form-label">Note libere</label><textarea class="form-textarea" id="f_notes" rows="4" placeholder="Strategia, osservazioni, storia dell'asset, prossimi step…"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveProperty()">Salva Immobile</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ═══════════════════════════════════════════
+//  SUPABASE CONFIG
+// ═══════════════════════════════════════════
+const SUPABASE_URL = 'https://nbnpqybgwlzmljgqjwgq.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ibnBxeWJnd2x6bWxqZ3Fqd2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTY2NzYsImV4cCI6MjA5MzAzMjY3Nn0.3CQHX4zjze3_SjY7PKP5Un6TCbXi2q6_1-ZDPu5Z2uc';
+const HEADERS = { 'Content-Type':'application/json', 'apikey':SUPABASE_KEY, 'Authorization':'Bearer '+SUPABASE_KEY };
+
+async function dbGet() {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/properties?select=*&order=created_at.desc`, { headers:HEADERS });
+  if (!r.ok) throw new Error('Fetch failed');
+  return r.json();
+}
+async function dbInsert(data) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/properties`, { method:'POST', headers:{...HEADERS,'Prefer':'return=representation'}, body:JSON.stringify(data) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function dbUpdate(id, data) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/properties?id=eq.${id}`, { method:'PATCH', headers:{...HEADERS,'Prefer':'return=representation'}, body:JSON.stringify(data) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function dbDelete(id) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/properties?id=eq.${id}`, { method:'DELETE', headers:HEADERS });
+  if (!r.ok) throw new Error(await r.text());
+}
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let properties = [];
+let editingId = null;
+let selectedId = null;
+let map, markers = {};
+let activeFilters = { zones:[], statuses:[], offmarket:false, pitch:false, transacted:false };
+
+function setSyncing(state) {
+  const dot = document.getElementById('syncDot');
+  const txt = document.getElementById('syncText');
+  dot.className = 'sync-dot' + (state==='syncing'?' syncing':state==='error'?' error':'');
+  txt.textContent = state==='syncing'?'Salvataggio…':state==='error'?'Errore connessione':'Online';
+}
+
+// ═══════════════════════════════════════════
+//  MAP
+// ═══════════════════════════════════════════
+function initMap() {
+  map = L.map('map', { zoomControl:false }).setView([45.4654, 9.1859], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'© OpenStreetMap contributors', maxZoom:19
+  }).addTo(map);
+  L.control.zoom({ position:'bottomright' }).addTo(map);
+}
+
+function pinColor(p) {
+  return { 'Chiuso':'#16a34a','Mandato':'#d97706','In Trattativa':'#8b5cf6','Prospect':'#3b82f6' }[p.status] || '#8a909f';
+}
+
+function makeIcon(p) {
+  return L.divIcon({
+    className:'',
+    html:`<div class="pin-marker" style="background:${pinColor(p)}"><div class="pin-inner"></div></div>`,
+    iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-34]
+  });
+}
+
+// ═══════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════
+function renderAll() { renderMarkers(); renderList(); renderZoneChips(); updateStats(); }
+
+function getFiltered() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const glaMin=+document.getElementById('glaMin').value||0, glaMax=+document.getElementById('glaMax').value||Infinity;
+  const yMin=+document.getElementById('yieldMin').value||0, yMax=+document.getElementById('yieldMax').value||Infinity;
+  const vMin=+document.getElementById('valMin').value||0, vMax=+document.getElementById('valMax').value||Infinity;
+  const oMin=+document.getElementById('occMin').value||0, oMax=+document.getElementById('occMax').value||Infinity;
+  return properties.filter(p => {
+    if (q && !`${p.name} ${p.address} ${p.owner} ${p.zone} ${p.tenant}`.toLowerCase().includes(q)) return false;
+    if (activeFilters.zones.length && !activeFilters.zones.includes(p.zone)) return false;
+    if (activeFilters.statuses.length && !activeFilters.statuses.includes(p.status)) return false;
+    if (p.gla!=null && (p.gla<glaMin||p.gla>glaMax)) return false;
+    if (p.yield!=null && (p.yield<yMin||p.yield>yMax)) return false;
+    if (p.value!=null && (p.value<vMin||p.value>vMax)) return false;
+    if (p.occupancy!=null && (p.occupancy<oMin||p.occupancy>oMax)) return false;
+    if (activeFilters.offmarket && !p.offmarket) return false;
+    if (activeFilters.pitch && !p.pitch) return false;
+    if (activeFilters.transacted && !p.transacted) return false;
+    return true;
+  });
+}
+
+function renderMarkers() {
+  Object.values(markers).forEach(m => map.removeLayer(m));
+  markers = {};
+  const filtered = new Set(getFiltered().map(p=>p.id));
+  properties.forEach(p => {
+    if (!p.lat||!p.lng) return;
+    const m = L.marker([p.lat,p.lng], { icon:makeIcon(p), opacity:filtered.has(p.id)?1:0.2 });
+    m.bindPopup(popupHtml(p), { maxWidth:240 });
+    m.on('click', () => openPanel(p.id));
+    m.addTo(map);
+    markers[p.id] = m;
+  });
+}
+
+function popupHtml(p) {
+  return `<div class="popup-inner">
+    <div class="popup-name">${p.name}</div>
+    <div class="popup-row"><span>Zona</span><span>${p.zone||'—'}</span></div>
+    <div class="popup-row"><span>GLA</span><span>${p.gla?p.gla.toLocaleString('it')+' mq':'—'}</span></div>
+    <div class="popup-row"><span>Yield</span><span>${p.yield?p.yield+'%':'—'}</span></div>
+    <div class="popup-row"><span>Valore</span><span>${p.value?'€'+p.value+'M':'—'}</span></div>
+    <div class="popup-row"><span>Status</span><span>${p.status||'—'}</span></div>
+    <button class="popup-btn" onclick="openPanel(${p.id})">Apri scheda →</button>
+  </div>`;
+}
+
+function renderList() {
+  const filtered = getFiltered();
+  document.getElementById('listCount').innerHTML = `<strong>${filtered.length}</strong> di ${properties.length} immobili`;
+  const list = document.getElementById('propList');
+  if (!filtered.length) { list.innerHTML='<div class="empty-list">Nessun risultato<br>con i filtri selezionati.</div>'; return; }
+  const sc = { 'Mandato':'b-mandato','Prospect':'b-prospect','In Trattativa':'b-trattativa','Chiuso':'b-chiuso' };
+  list.innerHTML = filtered.map(p => {
+    const badges = [];
+    if (p.offmarket) badges.push(`<span class="badge b-offmarket">Off Mkt</span>`);
+    if (p.pitch) badges.push(`<span class="badge b-pitch">Pitch</span>`);
+    if (p.transacted) badges.push(`<span class="badge b-transacted">Transato</span>`);
+    if (p.status) badges.push(`<span class="badge ${sc[p.status]||'b-prospect'}">${p.status}</span>`);
+    return `<div class="prop-item ${selectedId===p.id?'selected':''}" onclick="openPanel(${p.id})">
+      <div class="prop-row1"><div class="prop-name">${p.name}</div>${p.yield?`<div class="prop-yield">${p.yield}%</div>`:''}</div>
+      <div class="prop-meta">
+        ${p.zone?`<span class="prop-zone">${p.zone}</span>`:''}
+        ${p.gla?`<span class="prop-size">${p.gla.toLocaleString('it')} mq</span>`:''}
+        ${p.value?`<span class="prop-val">€${p.value}M</span>`:''}
+      </div>
+      <div class="prop-badges">${badges.join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderZoneChips() {
+  const zones = [...new Set(properties.map(p=>p.zone).filter(Boolean))].sort();
+  document.getElementById('zoneChips').innerHTML = zones.map(z =>
+    `<button class="chip ${activeFilters.zones.includes(z)?'active':''}" data-val="${z}" onclick="toggleChip(this,'zone')">${z}</button>`
+  ).join('');
+}
+
+function updateStats() {
+  const tot=properties.length;
+  const val=properties.reduce((s,p)=>s+(p.value||0),0);
+  const gla=properties.reduce((s,p)=>s+(p.gla||0),0);
+  const pip=properties.filter(p=>['In Trattativa','Mandato'].includes(p.status)).length;
+  document.getElementById('headerStats').innerHTML = `
+    <div class="hstat">🏢 Immobili: <strong>${tot}</strong></div>
+    <div class="hstat">💶 Valore: <strong>€${val.toFixed(0)}M</strong></div>
+    <div class="hstat">📐 GLA: <strong>${(gla/1000).toFixed(0)}k mq</strong></div>
+    <div class="hstat">📋 Pipeline: <strong>${pip}</strong></div>
+  `;
+}
+
+// ═══════════════════════════════════════════
+//  FILTERS
+// ═══════════════════════════════════════════
+function toggleChip(btn, type) {
+  const val=btn.dataset.val, arr=type==='zone'?activeFilters.zones:activeFilters.statuses;
+  const idx=arr.indexOf(val); idx>-1?arr.splice(idx,1):arr.push(val);
+  btn.classList.toggle('active'); applyFilters();
+}
+function togglePill(key, color) {
+  activeFilters[key]=!activeFilters[key];
+  const el=document.getElementById('pill'+key.charAt(0).toUpperCase()+key.slice(1));
+  el.className='pill'+(activeFilters[key]?` on-${color}`:''); applyFilters();
+}
+function applyFilters() { renderMarkers(); renderList(); }
+function resetFilters() {
+  activeFilters={zones:[],statuses:[],offmarket:false,pitch:false,transacted:false};
+  document.getElementById('searchInput').value='';
+  ['glaMin','glaMax','yieldMin','yieldMax','valMin','valMax','occMin','occMax'].forEach(id=>document.getElementById(id).value='');
+  document.querySelectorAll('.chip.active').forEach(c=>c.classList.remove('active'));
+  ['pillOffmarket','pillPitch','pillTransacted'].forEach(id=>document.getElementById(id).className='pill');
+  applyFilters();
+}
+
+// ═══════════════════════════════════════════
+//  PANEL
+// ═══════════════════════════════════════════
+function openPanel(id) {
+  selectedId=id;
+  const p=properties.find(x=>x.id===id); if(!p) return;
+  document.getElementById('panelTitle').textContent=p.name;
+  document.getElementById('panelAddress').textContent=p.address||'';
+  const sc={'Mandato':'b-mandato','Prospect':'b-prospect','In Trattativa':'b-trattativa','Chiuso':'b-chiuso'};
+  const badges=[];
+  if(p.offmarket) badges.push(`<span class="badge b-offmarket">Off Market</span>`);
+  if(p.pitch) badges.push(`<span class="badge b-pitch">Pitch Fatto</span>`);
+  if(p.transacted) badges.push(`<span class="badge b-transacted">Transato Rec.</span>`);
+  if(p.status) badges.push(`<span class="badge ${sc[p.status]||''}" style="font-size:11px;padding:2px 8px">${p.status}</span>`);
+  document.getElementById('panelBadges').innerHTML=badges.join('');
+  document.getElementById('panelBody').innerHTML=buildPanel(p);
+  document.getElementById('detailPanel').classList.add('open');
+  renderList();
+  if(markers[id]) markers[id].openPopup();
+  if(p.lat&&p.lng) map.setView([p.lat,p.lng],14);
+}
+function closePanel() { document.getElementById('detailPanel').classList.remove('open'); selectedId=null; renderList(); }
+
+function v(val,suffix='',prefix='') {
+  if(val===null||val===undefined||val==='') return '<span style="color:var(--text3)">—</span>';
+  return `${prefix}${typeof val==='number'?val.toLocaleString('it'):val}${suffix}`;
+}
+
+function buildPanel(p) {
+  return `
+  <div class="detail-block"><div class="detail-block-title">Dati Finanziari</div>
+    <div class="detail-grid">
+      <div class="dcard highlight"><div class="dcard-label">Valore Stimato</div><div class="dcard-value big">${p.value?'€'+p.value+'M':'—'}</div></div>
+      <div class="dcard highlight"><div class="dcard-label">Yield Netto</div><div class="dcard-value big">${p.yield?p.yield+'%':'—'}</div></div>
+      <div class="dcard"><div class="dcard-label">GLA</div><div class="dcard-value">${p.gla?p.gla.toLocaleString('it')+' mq':'—'}</div></div>
+      <div class="dcard"><div class="dcard-label">Occupancy</div><div class="dcard-value ${p.occupancy>=90?'green':p.occupancy&&p.occupancy<70?'orange':''}">${p.occupancy?p.occupancy+'%':'—'}</div></div>
+      <div class="dcard"><div class="dcard-label">WAULT</div><div class="dcard-value">${p.wault?p.wault+' anni':'—'}</div></div>
+      <div class="dcard"><div class="dcard-label">Canone medio</div><div class="dcard-value">${p.rent?'€'+p.rent+'/mq/a':'—'}</div></div>
+      <div class="dcard"><div class="dcard-label">NOI Annuo</div><div class="dcard-value">${p.noi?'€'+p.noi+'M':'—'}</div></div>
+    </div>
+  </div>
+  <div class="detail-block"><div class="detail-block-title">Edificio</div>
+    <div class="detail-grid">
+      <div class="dcard"><div class="dcard-label">Destinazione</div><div class="dcard-value">${v(p.use_type)}</div></div>
+      <div class="dcard"><div class="dcard-label">Zona</div><div class="dcard-value">${v(p.zone)}</div></div>
+      <div class="dcard"><div class="dcard-label">Anno costruzione</div><div class="dcard-value">${v(p.year_built)}</div></div>
+      <div class="dcard"><div class="dcard-label">Ultima ristrut.</div><div class="dcard-value">${v(p.year_renov)}</div></div>
+      <div class="dcard"><div class="dcard-label">Piani</div><div class="dcard-value">${v(p.floors)}</div></div>
+      <div class="dcard"><div class="dcard-label">Classe energetica</div><div class="dcard-value">${v(p.energy)}</div></div>
+      <div class="dcard full"><div class="dcard-label">Certificazione ESG</div><div class="dcard-value">${v(p.esg)}</div></div>
+    </div>
+  </div>
+  <div class="detail-block"><div class="detail-block-title">Proprietà & Contatti</div>
+    <div class="detail-grid">
+      <div class="dcard"><div class="dcard-label">Proprietario</div><div class="dcard-value">${v(p.owner)}</div></div>
+      <div class="dcard"><div class="dcard-label">Tipo</div><div class="dcard-value">${v(p.owner_type)}</div></div>
+      <div class="dcard full"><div class="dcard-label">Contatto</div><div class="dcard-value" style="font-size:12px">${v(p.contact)}</div></div>
+      <div class="dcard"><div class="dcard-label">Tenant principale</div><div class="dcard-value">${v(p.tenant)}</div></div>
+      <div class="dcard"><div class="dcard-label">Advisor vendita</div><div class="dcard-value">${v(p.advisor)}</div></div>
+    </div>
+  </div>
+  <div class="detail-block"><div class="detail-block-title">Pipeline CW</div>
+    <div class="detail-grid">
+      <div class="dcard"><div class="dcard-label">Deal Team</div><div class="dcard-value">${v(p.team)}</div></div>
+      <div class="dcard"><div class="dcard-label">Data Pitch</div><div class="dcard-value">${v(p.pitch_date)}</div></div>
+      ${p.transacted?`
+      <div class="dcard"><div class="dcard-label">Data Transazione</div><div class="dcard-value green">${v(p.trans_date)}</div></div>
+      <div class="dcard"><div class="dcard-label">Prezzo Transazione</div><div class="dcard-value green">${p.trans_price?'€'+p.trans_price+'M':'—'}</div></div>
+      <div class="dcard full"><div class="dcard-label">Acquirente</div><div class="dcard-value">${v(p.trans_buyer)}</div></div>`:''}
+    </div>
+  </div>
+  ${p.notes?`<div class="detail-block"><div class="detail-block-title">Note</div><div class="notes-card">${p.notes}</div></div>`:''}`;
+}
+
+// ═══════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════
+function openAddModal() { editingId=null; document.getElementById('modalTitle').textContent='Aggiungi Immobile'; clearForm(); document.getElementById('modalOverlay').classList.add('open'); }
+function editSelected() {
+  if(!selectedId) return;
+  const p=properties.find(x=>x.id===selectedId);
+  editingId=p.id; document.getElementById('modalTitle').textContent='Modifica — '+p.name;
+  fillForm(p); document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+function clearForm() {
+  ['name','address','lat','lng','zone','use_type','gla','year_built','year_renov','floors','energy','esg',
+   'value','yield','occupancy','wault','rent','noi','owner','owner_type','contact','tenant','advisor',
+   'status','team','pitch_date','trans_date','trans_price','trans_buyer','notes'].forEach(id=>{
+    const el=document.getElementById('f_'+id); if(el) el.value='';
+  });
+  ['offmarket','pitch','transacted'].forEach(id=>document.getElementById('f_'+id).checked=false);
+}
+
+function fillForm(p) {
+  ['name','address','lat','lng','zone','use_type','gla','year_built','year_renov','floors','energy','esg',
+   'value','yield','occupancy','wault','rent','noi','owner','owner_type','contact','tenant','advisor',
+   'status','team','pitch_date','trans_date','trans_price','trans_buyer','notes'].forEach(k=>{
+    const el=document.getElementById('f_'+k); if(el&&p[k]!=null) el.value=p[k];
+  });
+  document.getElementById('f_offmarket').checked=!!p.offmarket;
+  document.getElementById('f_pitch').checked=!!p.pitch;
+  document.getElementById('f_transacted').checked=!!p.transacted;
+}
+
+async function saveProperty() {
+  const name=document.getElementById('f_name').value.trim();
+  const lat=parseFloat(document.getElementById('f_lat').value);
+  const lng=parseFloat(document.getElementById('f_lng').value);
+  if(!name) { toast('⚠️ Inserisci il nome'); return; }
+  if(isNaN(lat)||isNaN(lng)) { toast('⚠️ Coordinate non valide'); return; }
+  const g=id=>document.getElementById('f_'+id).value.trim();
+  const n=id=>{ const v=parseFloat(document.getElementById('f_'+id).value); return isNaN(v)?null:v; };
+  const data = {
+    name,lat,lng,address:g('address'),zone:g('zone'),use_type:g('use_type'),
+    gla:n('gla'),year_built:n('year_built'),year_renov:n('year_renov'),floors:n('floors'),
+    energy:g('energy'),esg:g('esg'),value:n('value'),yield:n('yield'),
+    occupancy:n('occupancy'),wault:n('wault'),rent:n('rent'),noi:n('noi'),
+    owner:g('owner'),owner_type:g('owner_type'),contact:g('contact'),tenant:g('tenant'),advisor:g('advisor'),
+    status:g('status'),team:g('team'),
+    offmarket:document.getElementById('f_offmarket').checked,
+    pitch:document.getElementById('f_pitch').checked,
+    transacted:document.getElementById('f_transacted').checked,
+    pitch_date:g('pitch_date'),trans_date:g('trans_date'),
+    trans_price:n('trans_price'),trans_buyer:g('trans_buyer'),notes:g('notes')
+  };
+  const btn=document.getElementById('saveBtn');
+  btn.textContent='Salvataggio…'; btn.disabled=true;
+  setSyncing('syncing');
+  try {
+    if(editingId) {
+      await dbUpdate(editingId, data);
+      toast('✓ Immobile aggiornato');
+    } else {
+      await dbInsert(data);
+      toast('✓ Immobile aggiunto');
+    }
+    closeModal();
+    await loadData();
+    if(editingId) openPanel(editingId);
+    setSyncing('ok');
+  } catch(e) {
+    toast('✗ Errore: '+e.message); setSyncing('error');
+  } finally {
+    btn.textContent='Salva Immobile'; btn.disabled=false;
+  }
+}
+
+async function deleteSelected() {
+  if(!selectedId) return;
+  const p=properties.find(x=>x.id===selectedId);
+  if(!confirm(`Eliminare "${p.name}"?`)) return;
+  setSyncing('syncing');
+  try {
+    await dbDelete(selectedId);
+    closePanel(); await loadData();
+    toast('✓ Immobile eliminato'); setSyncing('ok');
+  } catch(e) { toast('✗ Errore: '+e.message); setSyncing('error'); }
+}
+
+// ═══════════════════════════════════════════
+//  LOAD DATA
+// ═══════════════════════════════════════════
+async function loadData() {
+  try {
+    properties = await dbGet();
+    renderAll();
+  } catch(e) {
+    setSyncing('error');
+    toast('✗ Errore connessione database');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+document.getElementById('modalOverlay').addEventListener('click', e=>{
+  if(e.target===document.getElementById('modalOverlay')) closeModal();
+});
+
+var _zones=[{"label":"CBD - Historic","color":"#FF5252","opacity":0.2,"isMarket":true,"coords":[[45.473226,9.191059],[45.473286,9.190035],[45.471873,9.182231],[45.470834,9.183003],[45.470052,9.183239],[45.469224,9.18296],[45.466786,9.181136],[45.465638,9.180316],[45.465593,9.18053],[45.464822,9.181812],[45.463973,9.181843],[45.463107,9.182504],[45.462359,9.183637],[45.46193,9.18434],[45.46143,9.185488],[45.461537,9.185675],[45.460999,9.18622],[45.460928,9.186236],[45.460672,9.186286],[45.460092,9.186334],[45.460249,9.187696],[45.460217,9.187747],[45.460163,9.188243],[45.460443,9.188372],[45.459717,9.189799],[45.460488,9.190834],[45.460436,9.190931],[45.462042,9.193302],[45.462501,9.194246],[45.462821,9.195099],[45.462915,9.196054],[45.46293,9.196692],[45.462862,9.197046],[45.462309,9.198038],[45.463942,9.199621],[45.4648,9.200141],[45.46582,9.200587],[45.46702,9.200656],[45.468193,9.199889],[45.468799,9.199342],[45.469431,9.1988],[45.470342,9.19769],[45.471368,9.19644],[45.472196,9.195437],[45.473061,9.191022],[45.473226,9.191059]],"holes":[]},{"label":"CBD - Porta Nuova","color":"#FF5252","opacity":0.2,"isMarket":true,"coords":[[45.472195,9.195441],[45.472904,9.196291],[45.476316,9.198305],[45.477191,9.199205],[45.479381,9.200941],[45.487643,9.209507],[45.489149,9.206247],[45.491149,9.202506],[45.487364,9.197892],[45.488419,9.195657],[45.489336,9.192683],[45.487004,9.193441],[45.486533,9.188567],[45.486798,9.186705],[45.485948,9.1863],[45.485748,9.186774],[45.484742,9.185643],[45.485551,9.184214],[45.48651,9.181903],[45.482649,9.1812],[45.48092,9.182722],[45.479476,9.192356],[45.473061,9.191022],[45.472195,9.195441]],"holes":[]},{"label":"Centre","color":"#F57C00","opacity":0.2,"isMarket":true,"coords":[[45.479446,9.192276],[45.480921,9.182714],[45.482138,9.181627],[45.481989,9.181197],[45.480873,9.180976],[45.480666,9.179199],[45.479186,9.177273],[45.478744,9.177504],[45.477436,9.177085],[45.476818,9.178361],[45.477203,9.180661],[45.474122,9.1813],[45.472562,9.178916],[45.470693,9.181243],[45.47034,9.181441],[45.470044,9.181513],[45.469792,9.181473],[45.4695,9.18135],[45.46923,9.181116],[45.469021,9.180708],[45.468839,9.180392],[45.468867,9.179948],[45.468913,9.179459],[45.46934,9.178293],[45.470689,9.176433],[45.469921,9.175274],[45.471864,9.172732],[45.467553,9.165552],[45.461343,9.163816],[45.454041,9.175476],[45.452492,9.177188],[45.452012,9.18672],[45.451166,9.190546],[45.451627,9.19268],[45.45165,9.201478],[45.452419,9.202549],[45.45464,9.203413],[45.457915,9.20537],[45.460158,9.207103],[45.461228,9.207364],[45.468611,9.206267],[45.473952,9.205872],[45.474191,9.20573],[45.477188,9.1992],[45.476308,9.198298],[45.472903,9.196292],[45.472196,9.195438],[45.469422,9.198807],[45.468798,9.199344],[45.468194,9.199889],[45.467019,9.200657],[45.465826,9.200588],[45.4648,9.200142],[45.463944,9.199622],[45.462309,9.198038],[45.462861,9.197048],[45.462928,9.196693],[45.462915,9.196052],[45.462822,9.195097],[45.4625,9.194248],[45.462043,9.193301],[45.460436,9.190932],[45.460488,9.190833],[45.459717,9.189799],[45.460442,9.188373],[45.460163,9.188244],[45.460217,9.187747],[45.460249,9.187697],[45.460092,9.186334],[45.460673,9.186286],[45.460997,9.186221],[45.461535,9.185674],[45.46143,9.185488],[45.461931,9.184339],[45.463108,9.182502],[45.463974,9.18184],[45.464823,9.181812],[45.465592,9.180531],[45.465637,9.180314],[45.469226,9.182961],[45.470054,9.183244],[45.470816,9.183014],[45.47187,9.182234],[45.473284,9.190042],[45.473228,9.191062],[45.479446,9.192276]],"holes":[]},{"label":"Semi Centre","color":"#FFEA00","opacity":0.2,"isMarket":true,"coords":[[45.490642,9.207365],[45.492281,9.204136],[45.494026,9.200703],[45.494432,9.199512],[45.495703,9.19478],[45.497786,9.187088],[45.497756,9.186476],[45.497602,9.184094],[45.49676,9.170769],[45.49858,9.166456],[45.498745,9.165555],[45.498625,9.164611],[45.498113,9.163581],[45.485568,9.144226],[45.484861,9.143475],[45.483808,9.142917],[45.476948,9.142488],[45.476436,9.142724],[45.476105,9.142424],[45.475593,9.142402],[45.475308,9.143046],[45.471666,9.144248],[45.47135,9.14384],[45.470116,9.144205],[45.469876,9.144784],[45.465752,9.146071],[45.455292,9.152208],[45.454765,9.152466],[45.449934,9.155384],[45.449572,9.156028],[45.449226,9.156736],[45.448835,9.157144],[45.447992,9.157551],[45.447179,9.157895],[45.446727,9.158388],[45.44617,9.159204],[45.445568,9.160319],[45.444875,9.162014],[45.444544,9.163087],[45.444138,9.164933],[45.443882,9.166328],[45.443174,9.180339],[45.443023,9.185039],[45.443031,9.188772],[45.442008,9.189748],[45.441526,9.190982],[45.44139,9.191676],[45.441427,9.193519],[45.441517,9.198172],[45.440699,9.199584],[45.438816,9.199971],[45.436718,9.200471],[45.43736,9.204267],[45.437454,9.206148],[45.439398,9.206265],[45.440106,9.210659],[45.440427,9.214556],[45.44251,9.21986],[45.446093,9.220174],[45.446064,9.213175],[45.448216,9.211041],[45.452568,9.21495],[45.455222,9.216864],[45.458086,9.217878],[45.483718,9.217558],[45.486065,9.217526],[45.490517,9.207591],[45.490642,9.207365]],"holes":[[[45.489179,9.206217],[45.491149,9.202505],[45.487359,9.197892],[45.488412,9.19566],[45.489344,9.192678],[45.487008,9.193444],[45.486531,9.188579],[45.486787,9.186712],[45.485945,9.186305],[45.485749,9.186777],[45.484741,9.185639],[45.485553,9.184202],[45.486501,9.181906],[45.48265,9.181198],[45.482138,9.181627],[45.481988,9.181198],[45.480875,9.180983],[45.480664,9.179202],[45.479189,9.177271],[45.478738,9.177507],[45.477444,9.177078],[45.476812,9.178365],[45.477203,9.18064],[45.474119,9.181284],[45.472554,9.178902],[45.470703,9.181241],[45.470342,9.181434],[45.470041,9.18152],[45.469785,9.181477],[45.469499,9.181348],[45.469229,9.181112],[45.469018,9.180704],[45.468842,9.18039],[45.468867,9.179953],[45.468913,9.17946],[45.469334,9.178301],[45.470688,9.176434],[45.469921,9.175275],[45.471862,9.172722],[45.467558,9.165555],[45.461343,9.163817],[45.454058,9.17549],[45.452493,9.177207],[45.452011,9.186712],[45.451168,9.190532],[45.451635,9.192678],[45.45165,9.201475],[45.452417,9.202548],[45.454615,9.203406],[45.457911,9.20538],[45.460154,9.207097],[45.461253,9.207355],[45.468326,9.206282],[45.473953,9.205874],[45.474194,9.205724],[45.477188,9.199201],[45.479385,9.200939],[45.487644,9.2095],[45.489179,9.206217]]]},{"label":"Periphery","color":"#7CB342","opacity":0.2,"isMarket":true,"coords":[[45.535321,9.175718],[45.533479,9.158482],[45.52539,9.15237],[45.518645,9.14832],[45.52,9.136893],[45.525024,9.128673],[45.51991,9.117772],[45.522548,9.107166],[45.52677,9.096856],[45.529508,9.095781],[45.522808,9.094361],[45.514517,9.094844],[45.506024,9.094364],[45.500817,9.089976],[45.498205,9.084978],[45.498644,9.075504],[45.505945,9.071963],[45.50232,9.061899],[45.505208,9.055319],[45.494216,9.06],[45.489017,9.061425],[45.489914,9.065019],[45.483876,9.066017],[45.478231,9.073137],[45.476357,9.075362],[45.47205,9.076692],[45.466629,9.074158],[45.46457,9.069378],[45.460013,9.073751],[45.458497,9.071708],[45.461551,9.068594],[45.46278,9.060906],[45.461605,9.056159],[45.463596,9.048623],[45.459919,9.044643],[45.452567,9.049808],[45.446371,9.042018],[45.436577,9.059171],[45.435721,9.07598],[45.443924,9.078446],[45.448839,9.077987],[45.451467,9.080087],[45.452236,9.085606],[45.45163,9.093934],[45.448851,9.097491],[45.447754,9.100868],[45.447148,9.104033],[45.450667,9.109199],[45.445315,9.112455],[45.442489,9.115908],[45.439155,9.118682],[45.434704,9.121225],[45.428556,9.12668],[45.423636,9.132017],[45.42145,9.131029],[45.414522,9.132958],[45.416612,9.139524],[45.415044,9.147506],[45.41544,9.152522],[45.412434,9.157363],[45.401454,9.156279],[45.402984,9.165724],[45.394521,9.172922],[45.391471,9.186474],[45.391674,9.191247],[45.388526,9.19752],[45.397611,9.200419],[45.3934,9.205029],[45.397582,9.209688],[45.402224,9.215824],[45.40913,9.224118],[45.409016,9.24042],[45.414998,9.249697],[45.423498,9.249253],[45.426713,9.25376],[45.434819,9.266277],[45.442116,9.266687],[45.451067,9.266179],[45.457344,9.264597],[45.461098,9.272161],[45.472494,9.26889],[45.476546,9.26147],[45.489667,9.258099],[45.49519,9.262102],[45.501737,9.261074],[45.505915,9.267968],[45.503423,9.276178],[45.50862,9.271147],[45.512467,9.268139],[45.51607,9.267212],[45.516748,9.262026],[45.519618,9.260634],[45.520322,9.25402],[45.519289,9.240984],[45.523289,9.225936],[45.526791,9.216253],[45.528176,9.20746],[45.527569,9.199134],[45.527184,9.190128],[45.532028,9.184651]],"holes":[[[45.492281,9.204136],[45.494026,9.200703],[45.494432,9.199512],[45.495703,9.19478],[45.497786,9.187088],[45.497756,9.186476],[45.497602,9.184094],[45.49676,9.170769],[45.49858,9.166456],[45.498745,9.165555],[45.498625,9.164611],[45.498113,9.163581],[45.485568,9.144226],[45.484861,9.143475],[45.483808,9.142917],[45.476948,9.142488],[45.476436,9.142724],[45.476105,9.142424],[45.475593,9.142402],[45.475308,9.143046],[45.471666,9.144248],[45.47135,9.14384],[45.470116,9.144205],[45.469876,9.144784],[45.465752,9.146071],[45.455292,9.152208],[45.454765,9.152466],[45.449934,9.155384],[45.449572,9.156028],[45.449226,9.156736],[45.448835,9.157144],[45.447992,9.157551],[45.447179,9.157895],[45.446727,9.158388],[45.44617,9.159204],[45.445568,9.160319],[45.444875,9.162014],[45.444544,9.163087],[45.444138,9.164933],[45.443882,9.166328],[45.443174,9.180339],[45.443023,9.185039],[45.443031,9.188772],[45.442008,9.189748],[45.441526,9.190982],[45.44139,9.191676],[45.441427,9.193519],[45.441517,9.198172],[45.440699,9.199584],[45.438816,9.199971],[45.436718,9.200471],[45.43736,9.204267],[45.437441,9.206113],[45.439385,9.206248],[45.440077,9.210482],[45.440427,9.214591],[45.44251,9.21986],[45.446093,9.220174],[45.446095,9.213147],[45.448197,9.21106],[45.452568,9.21495],[45.455222,9.216864],[45.458086,9.217878],[45.483718,9.217558],[45.486065,9.217526],[45.490517,9.207591],[45.490642,9.207365],[45.492281,9.204136]]]},{"label":"Hinterland","color":"#757575","opacity":0.15,"isMarket":true,"coords":[[45.591003,9.356356],[45.579623,9.3425],[45.572653,9.323155],[45.557413,9.324125],[45.541434,9.293263],[45.544935,9.281399],[45.549031,9.271345],[45.555201,9.25358],[45.563114,9.239322],[45.5735,9.223396],[45.581783,9.183354],[45.590909,9.161615],[45.584294,9.122949],[45.592409,9.101963],[45.610161,9.104025],[45.618457,9.107807],[45.62238,9.075206],[45.613979,9.054542],[45.593544,9.064737],[45.577904,9.045875],[45.579131,9.011231],[45.59597,8.968982],[45.626511,8.958631],[45.639264,8.935996],[45.613333,8.92352],[45.604167,8.896681],[45.583639,8.872338],[45.570873,8.848171],[45.586342,8.814458],[45.602912,8.795524],[45.577196,8.765598],[45.561239,8.729595],[45.557767,8.706843],[45.525083,8.712984],[45.498106,8.739343],[45.476199,8.790905],[45.438967,8.811983],[45.416228,8.828239],[45.37202,8.847924],[45.342282,8.87223],[45.324518,8.909587],[45.309125,8.943691],[45.270368,8.977208],[45.275908,9.015088],[45.294842,9.003432],[45.319832,8.989094],[45.32191,9.022215],[45.305171,9.025294],[45.301739,9.046269],[45.30455,9.07645],[45.306677,9.115574],[45.306226,9.122572],[45.308902,9.1383],[45.299427,9.175194],[45.293597,9.195462],[45.3146,9.194221],[45.332537,9.210473],[45.330041,9.235125],[45.327153,9.262226],[45.330746,9.281763],[45.326167,9.304909],[45.312758,9.332996],[45.304153,9.367957],[45.310923,9.376216],[45.318988,9.389049],[45.337174,9.365362],[45.366871,9.353406],[45.374086,9.378497],[45.39891,9.396895],[45.405209,9.412191],[45.419481,9.425518],[45.43528,9.411388],[45.457347,9.427141],[45.468438,9.440863],[45.462258,9.456977],[45.461546,9.490964],[45.491436,9.500722],[45.505784,9.522172],[45.515987,9.547887],[45.538129,9.528915],[45.577208,9.534841],[45.607751,9.526979],[45.632464,9.495547],[45.62842,9.493077],[45.618343,9.482544],[45.601957,9.477146],[45.5872,9.442678],[45.578641,9.418617],[45.578049,9.400194],[45.585947,9.382125],[45.595845,9.37409],[45.600145,9.393029],[45.608047,9.398293],[45.619461,9.401365],[45.634747,9.392129],[45.630814,9.37314],[45.632451,9.35687],[45.6294,9.344907],[45.614183,9.32839],[45.604393,9.33965]],"holes":[[[45.535022,9.174246],[45.52899,9.156811],[45.518598,9.153841],[45.520442,9.140578],[45.523574,9.128801],[45.520779,9.112944],[45.525857,9.100932],[45.531165,9.099373],[45.52131,9.094427],[45.51221,9.096336],[45.503934,9.091192],[45.498573,9.086224],[45.499931,9.075077],[45.504924,9.067356],[45.505171,9.057267],[45.494862,9.059166],[45.488739,9.062753],[45.488506,9.066663],[45.480087,9.070677],[45.476732,9.075369],[45.471498,9.075883],[45.46323,9.075266],[45.461886,9.071801],[45.458479,9.071985],[45.461871,9.067515],[45.462682,9.057962],[45.461379,9.053632],[45.463729,9.042844],[45.452136,9.049587],[45.446133,9.04577],[45.433529,9.069419],[45.443564,9.077588],[45.449577,9.077987],[45.451028,9.081711],[45.452379,9.092995],[45.44889,9.096937],[45.448136,9.101209],[45.448376,9.105296],[45.4462,9.111991],[45.442707,9.115794],[45.43901,9.118817],[45.430299,9.126445],[45.425686,9.128539],[45.420978,9.131072],[45.414179,9.133398],[45.417683,9.143136],[45.414573,9.150518],[45.412592,9.15557],[45.401555,9.158435],[45.401303,9.167466],[45.390568,9.182528],[45.392229,9.19123],[45.389369,9.199094],[45.397449,9.202309],[45.395084,9.208776],[45.40021,9.216768],[45.407597,9.225568],[45.411756,9.243177],[45.421532,9.242892],[45.426237,9.253224],[45.435113,9.266628],[45.444945,9.266559],[45.454529,9.263701],[45.460558,9.272209],[45.47196,9.267393],[45.479721,9.264691],[45.493131,9.261127],[45.501217,9.26087],[45.505761,9.272146],[45.505925,9.275039],[45.512303,9.267256],[45.516792,9.268345],[45.516974,9.261803],[45.519158,9.259158],[45.518495,9.245141],[45.523043,9.227703],[45.529292,9.216472],[45.528974,9.20202],[45.527488,9.19427],[45.531529,9.184701]]]},{"label":"Scalo Farini","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.495104,9.166147],[45.487885,9.182087],[45.48658,9.185257],[45.489385,9.186019],[45.491096,9.184115],[45.491378,9.184142],[45.497736,9.186929],[45.497435,9.181768],[45.497168,9.176905],[45.496804,9.17134],[45.49676,9.170769],[45.498714,9.166098],[45.498745,9.165555],[45.498625,9.164611],[45.49709,9.161881],[45.496165,9.163864],[45.495104,9.166147]],"holes":[]},{"label":"City Life District","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.489513,9.149604],[45.485903,9.144412],[45.483947,9.142899],[45.478019,9.142395],[45.47632,9.1433],[45.476245,9.144158],[45.475402,9.145391],[45.474529,9.146325],[45.473696,9.147566],[45.472667,9.148851],[45.470425,9.151754],[45.471604,9.153491],[45.470706,9.154671],[45.46996,9.155105],[45.469887,9.155578],[45.470084,9.156009],[45.47045,9.155995],[45.471656,9.157925],[45.472579,9.159472],[45.472888,9.160022],[45.473493,9.160716],[45.476278,9.162102],[45.477896,9.16516],[45.479784,9.168208],[45.486381,9.159062],[45.487291,9.157726],[45.487672,9.157666],[45.488565,9.157519],[45.488846,9.156454],[45.488505,9.155354],[45.489046,9.154382],[45.49041,9.151342],[45.489513,9.149604]],"holes":[]},{"label":"Santa Giulia","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.437493,9.248182],[45.43686,9.246465],[45.440564,9.240114],[45.444268,9.238483],[45.443696,9.235264],[45.432283,9.23977],[45.432042,9.241187],[45.433186,9.242517],[45.43412,9.243461],[45.434602,9.244749],[45.436288,9.247409],[45.437162,9.248455],[45.437493,9.248182]],"holes":[]},{"label":"Tortona District","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.452487,9.15384],[45.450093,9.15516],[45.448197,9.157767],[45.44904,9.161618],[45.450063,9.166693],[45.450605,9.16841],[45.451915,9.16989],[45.452652,9.17047],[45.453631,9.17047],[45.45424,9.170105],[45.454835,9.170062],[45.455038,9.169697],[45.455994,9.169378],[45.457298,9.168389],[45.452487,9.15384]],"holes":[]},{"label":"Maciachini","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.498343,9.186693],[45.503954,9.185298],[45.504916,9.184462],[45.505668,9.183657],[45.506358,9.179012],[45.498186,9.184451],[45.498205,9.18466],[45.498343,9.186693]],"holes":[]},{"label":"Lorenteggio","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.455016,9.10663],[45.450673,9.109203],[45.450406,9.110534],[45.449137,9.110782],[45.447855,9.111472],[45.446196,9.111991],[45.446279,9.113018],[45.445931,9.113239],[45.445791,9.112242],[45.443318,9.113341],[45.443771,9.115252],[45.440971,9.116697],[45.440561,9.117465],[45.439998,9.117887],[45.439114,9.118718],[45.440949,9.12459],[45.4428,9.130716],[45.446624,9.128356],[45.450252,9.126188],[45.458004,9.122648],[45.456364,9.115374],[45.455016,9.10663]],"holes":[]},{"label":"Bicocca","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.529659,9.216454],[45.529609,9.21382],[45.529734,9.213249],[45.530283,9.213243],[45.530154,9.211869],[45.52998,9.211803],[45.529284,9.211943],[45.528286,9.211379],[45.526491,9.211145],[45.525754,9.211016],[45.521861,9.208827],[45.518689,9.207078],[45.511315,9.202506],[45.510351,9.206049],[45.510141,9.207733],[45.508374,9.209192],[45.509607,9.212014],[45.512659,9.214299],[45.514802,9.21579],[45.518448,9.21829],[45.520929,9.220286],[45.523725,9.222719],[45.523428,9.221485],[45.523399,9.220121],[45.52504,9.219809],[45.525006,9.219573],[45.525488,9.219392],[45.526167,9.219801],[45.526707,9.219788],[45.526802,9.216256],[45.528376,9.216742],[45.529291,9.216846],[45.529295,9.216432],[45.529305,9.216254],[45.529659,9.216454]],"holes":[]},{"label":"Scalo Porta Romana","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.448133,9.210057],[45.446608,9.189223],[45.4459,9.187223],[45.444615,9.18758],[45.443913,9.187656],[45.44324,9.187625],[45.443012,9.187658],[45.443031,9.188772],[45.442008,9.189748],[45.441526,9.190982],[45.44139,9.191676],[45.441456,9.194953],[45.441517,9.198172],[45.440699,9.199584],[45.437596,9.200282],[45.436718,9.200471],[45.43736,9.204267],[45.437445,9.206114],[45.43941,9.206248],[45.440109,9.210738],[45.44044,9.214597],[45.44251,9.21986],[45.446093,9.220174],[45.446081,9.213155],[45.448198,9.211055],[45.448133,9.210057]],"holes":[]},{"label":"Mind","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.519646,9.093334],[45.515262,9.107067],[45.515638,9.115565],[45.515908,9.117152],[45.518118,9.115093],[45.518554,9.114535],[45.522547,9.107171],[45.523068,9.106652],[45.521055,9.102898],[45.521081,9.102894],[45.521462,9.103037],[45.521814,9.103067],[45.522721,9.102837],[45.522896,9.102664],[45.522862,9.102068],[45.522348,9.100203],[45.522525,9.099061],[45.522824,9.098077],[45.523978,9.096383],[45.523019,9.09472],[45.522806,9.094354],[45.521786,9.095372],[45.520425,9.092676],[45.519646,9.093334]],"holes":[]},{"label":"Sesto San Giovanni","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.55376,9.268993],[45.555321,9.270745],[45.555186,9.263003],[45.554337,9.25723],[45.553588,9.251978],[45.553245,9.25028],[45.552637,9.249317],[45.552444,9.248376],[45.550712,9.24684],[45.549858,9.240226],[45.549085,9.237073],[45.546701,9.23303],[45.546433,9.231857],[45.545515,9.230735],[45.544729,9.230449],[45.54417,9.230504],[45.543083,9.227929],[45.542271,9.226402],[45.541144,9.2257],[45.540967,9.224769],[45.540771,9.222835],[45.540175,9.222157],[45.537884,9.220227],[45.536839,9.218639],[45.536896,9.217411],[45.537326,9.21496],[45.537312,9.21262],[45.536228,9.208883],[45.535418,9.210427],[45.534698,9.210723],[45.533091,9.208789],[45.531555,9.207822],[45.52979,9.205577],[45.528219,9.208062],[45.528176,9.209668],[45.530161,9.211873],[45.529657,9.216459],[45.528387,9.216733],[45.525011,9.219559],[45.523428,9.221466],[45.523582,9.223521],[45.523628,9.225159],[45.522853,9.226036],[45.523148,9.230863],[45.519854,9.233424],[45.517456,9.234629],[45.518808,9.238208],[45.518922,9.244081],[45.518688,9.245586],[45.520003,9.249607],[45.520104,9.252793],[45.519915,9.255199],[45.518375,9.25739],[45.519065,9.258454],[45.520019,9.258621],[45.521239,9.259109],[45.522387,9.260369],[45.523565,9.260784],[45.524624,9.261941],[45.526185,9.264241],[45.527165,9.264719],[45.529154,9.264933],[45.530601,9.265824],[45.532061,9.265062],[45.531902,9.263563],[45.533615,9.262649],[45.533005,9.263829],[45.533467,9.264699],[45.534247,9.263746],[45.534687,9.263051],[45.535972,9.264525],[45.536504,9.265572],[45.538471,9.263789],[45.538188,9.262919],[45.538164,9.261683],[45.539451,9.261746],[45.539084,9.263853],[45.539985,9.263851],[45.540497,9.262316],[45.541292,9.262881],[45.542121,9.262544],[45.542241,9.261383],[45.542621,9.260375],[45.542587,9.259256],[45.543443,9.259163],[45.544913,9.259912],[45.545864,9.259031],[45.546259,9.259671],[45.545945,9.261222],[45.545933,9.262707],[45.546576,9.26268],[45.548465,9.261382],[45.549718,9.26244],[45.550578,9.264287],[45.549854,9.265284],[45.549636,9.266742],[45.550592,9.267882],[45.551036,9.268288],[45.551937,9.267909],[45.553039,9.267367]],"holes":[]},{"label":"San Donato Milanese","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.431656,9.271597],[45.432865,9.270414],[45.435192,9.268687],[45.436617,9.267338],[45.437545,9.26731],[45.437462,9.266545],[45.437335,9.266501],[45.436011,9.266504],[45.435241,9.266932],[45.435076,9.266564],[45.434819,9.266277],[45.432776,9.264083],[45.432504,9.26378],[45.431369,9.261919],[45.430456,9.260245],[45.429471,9.258507],[45.42868,9.257221],[45.427438,9.254886],[45.426784,9.253867],[45.426393,9.253472],[45.426154,9.253092],[45.425878,9.252417],[45.425382,9.251991],[45.423557,9.253804],[45.423328,9.253062],[45.42293,9.251639],[45.42024,9.252241],[45.413828,9.261757],[45.40231,9.26139],[45.402167,9.261614],[45.401816,9.261605],[45.401316,9.261947],[45.402522,9.264749],[45.401764,9.265439],[45.401263,9.266102],[45.400802,9.267163],[45.399651,9.270236],[45.399775,9.270661],[45.400489,9.271892],[45.400798,9.272512],[45.401665,9.273467],[45.401944,9.273073],[45.402819,9.272216],[45.403504,9.271498],[45.404147,9.270591],[45.404581,9.270258],[45.405768,9.270016],[45.406965,9.269239],[45.408007,9.271238],[45.408497,9.272175],[45.408431,9.274442],[45.408373,9.274748],[45.40829,9.275183],[45.407801,9.276251],[45.407435,9.276748],[45.406876,9.278212],[45.406393,9.279628],[45.406094,9.280646],[45.406738,9.282167],[45.407775,9.28509],[45.406727,9.286412],[45.406079,9.287607],[45.406148,9.288206],[45.405035,9.289496],[45.404766,9.290113],[45.40635,9.293362],[45.407363,9.294913],[45.407689,9.297368],[45.408417,9.29787],[45.408907,9.299751],[45.410066,9.30078],[45.412344,9.300524],[45.41323,9.298893],[45.413155,9.296631],[45.413059,9.295621],[45.41405,9.295167],[45.415067,9.295313],[45.415567,9.293232],[45.416472,9.291397],[45.41737,9.290377],[45.419319,9.292116],[45.419052,9.291016],[45.419775,9.289703],[45.420422,9.290102],[45.420739,9.289312],[45.420436,9.28839],[45.422032,9.287883],[45.422399,9.287773],[45.423142,9.287504],[45.42358,9.287255],[45.424529,9.285739],[45.425367,9.285219],[45.426154,9.283753],[45.425834,9.282307],[45.425783,9.279093],[45.426106,9.277758],[45.425635,9.275135],[45.426853,9.274169],[45.428948,9.273021],[45.429597,9.272781]],"holes":[]},{"label":"Segrate","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.509232,9.298956],[45.509949,9.300082],[45.509066,9.296715],[45.508095,9.295008],[45.506814,9.294041],[45.506011,9.292682],[45.505129,9.292882],[45.504968,9.291089],[45.504845,9.289537],[45.506619,9.285847],[45.507846,9.284753],[45.506547,9.282185],[45.50737,9.280692],[45.507059,9.275416],[45.505925,9.275039],[45.505567,9.277905],[45.503423,9.276178],[45.50251,9.274865],[45.501964,9.273866],[45.502702,9.27175],[45.505103,9.272501],[45.505851,9.270294],[45.505597,9.26744],[45.504899,9.264378],[45.504618,9.262367],[45.503671,9.26128],[45.50265,9.261243],[45.501217,9.26087],[45.500086,9.260359],[45.498385,9.260678],[45.497245,9.261184],[45.495799,9.261861],[45.49506,9.262204],[45.495,9.262007],[45.491156,9.260896],[45.490715,9.260753],[45.490155,9.259897],[45.48969,9.258241],[45.487471,9.258398],[45.484153,9.259284],[45.48009,9.264705],[45.479191,9.263641],[45.477477,9.26155],[45.476484,9.260897],[45.473757,9.260742],[45.471425,9.260982],[45.471562,9.264394],[45.472021,9.267577],[45.472393,9.269918],[45.471442,9.27142],[45.467613,9.271109],[45.46438,9.271746],[45.462287,9.271492],[45.461924,9.272744],[45.459768,9.274777],[45.458918,9.27664],[45.462894,9.277708],[45.457991,9.280165],[45.454976,9.283476],[45.455218,9.285759],[45.455731,9.287662],[45.456877,9.290277],[45.459882,9.290791],[45.461383,9.291374],[45.462777,9.295628],[45.461888,9.297951],[45.463029,9.302204],[45.465188,9.302727],[45.4667,9.302976],[45.466948,9.306966],[45.469192,9.30764],[45.469847,9.309499],[45.471508,9.309174],[45.472745,9.308589],[45.473993,9.310008],[45.47562,9.313367],[45.476675,9.312455],[45.476949,9.31142],[45.475938,9.308414],[45.477243,9.307305],[45.478317,9.307554],[45.479523,9.306572],[45.478951,9.303925],[45.480102,9.303986],[45.481995,9.304385],[45.484842,9.307731],[45.48526,9.309436],[45.486678,9.308307],[45.489631,9.306312],[45.490966,9.307703],[45.491145,9.308886],[45.492394,9.312063],[45.495239,9.310263],[45.497557,9.306861],[45.498518,9.30705],[45.500532,9.30756],[45.501987,9.305139],[45.504002,9.303137],[45.507203,9.302392],[45.507714,9.300937]],"holes":[]},{"label":"Milanofiori","color":"#0288D1","opacity":0.25,"isMarket":false,"coords":[[45.408145,9.158684],[45.411111,9.155499],[45.412479,9.151355],[45.397757,9.142947],[45.396832,9.14312],[45.395425,9.144049],[45.394476,9.144746],[45.394308,9.145089],[45.392926,9.149408],[45.408145,9.158684]],"holes":[]}];
+var _zl=null,_zv=true;
+function _rz(){
+  if(_zl){map.removeLayer(_zl);_zl=null;}
+  if(!_zv)return;
+  _zl=L.layerGroup();
+  _zones.forEach(function(z){
+    var ll=[z.coords];
+    z.holes.forEach(function(h){ll.push(h);});
+    L.polygon(ll,{
+      color:z.color,weight:z.isMarket?2:1,
+      opacity:.7,fillColor:z.color,fillOpacity:z.opacity,
+      dashArray:z.isMarket?null:'5,5'
+    }).bindTooltip(z.label,{sticky:true}).addTo(_zl);
+  });
+  _zl.addTo(map);
+  _zl.eachLayer(function(l){if(l.bringToBack)l.bringToBack();});
+}
+function _tz(){
+  _zv=!_zv;
+  document.getElementById('_zbtn').style.opacity=_zv?'1':'0.4';
+  _rz();
+}
+window.addEventListener('load', async () => {
+  initMap();
+  _rz();
+  await loadData();
+  document.getElementById('loadingScreen').style.display='none';
+});
+</script>
+</body>
+</html>
