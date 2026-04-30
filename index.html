@@ -504,7 +504,7 @@ function renderZones() {
     }).bindTooltip(z.label,{sticky:true}).addTo(zl);
   });
   zl.addTo(map);
-  zl.bringToBack();
+  zl.eachLayer(function(l){ if(l.bringToBack) l.bringToBack(); });
 }
 
 // ── PIN COLORS ──
@@ -987,8 +987,4 @@ document.getElementById('modalOverlay').addEventListener('click',e=>{
 window.addEventListener('load', async () => {
   initMap();
   await loadData();
-  document.getElementById('loadingScreen').style.display='none';
-});
-</script>
-</body>
-</html>
+  document.getElementById('loadingScreen').style
